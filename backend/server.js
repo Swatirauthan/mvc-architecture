@@ -56,17 +56,12 @@ app.get("/api/users", async (req, res) => {
          u.id,
          u.name,
          u.email,
-         COALESCE(
-           json_agg(
-             json_build_object('id', c.id, 'name', c.name, 'price', c.price)
-             ORDER BY c.id
-           ) FILTER (WHERE c.id IS NOT NULL),
-           '[]'
-         ) AS courses
+         u.course_id,
+         c.name AS course_name,
+         c.price AS course_price
        FROM users u
-       LEFT JOIN user_courses uc ON uc.user_id = u.id
-       LEFT JOIN courses c ON c.id = uc.course_id
-       GROUP BY u.id
+       LEFT JOIN courses c
+         ON u.course_id = c.id
        ORDER BY u.id`
     );
 
@@ -105,52 +100,132 @@ app.get("/api/courses", async (req, res) => {
 
 
 // =========================
+// GET COURSE USERS
+// =========================
+
+app.get("/api/courses/:courseId/users", async (req, res) => {
+  const { courseId } = req.params;
+
+  try {
+    // Get the course
+    const courseResult = await pool.query(
+      `SELECT id, name, description, price
+       FROM courses
+       WHERE id = $1`,
+      [courseId]
+    );
+
+    if (courseResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Course not found"
+      });
+    }
+
+    // Get users enrolled in this course
+    const usersResult = await pool.query(
+      `SELECT
+          u.id,
+          u.name,
+          u.email
+       FROM users u
+       WHERE u.course_id = $1
+       ORDER BY u.id`,
+      [courseId]
+    );
+
+    res.json({
+      course: courseResult.rows[0],
+      users: usersResult.rows
+    });
+
+  } catch (error) {
+    console.error("Error fetching course users:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch users for this course"
+    });
+  }
+});
+
+
+// =========================
 // CREATE USER
 // =========================
 
 app.post("/api/users", async (req, res) => {
+  const { name, email, courseId } = req.body;
 
-  const { name, email, courseIds = [] } = req.body;
-
-  console.log("Received data:", req.body);
+  if (!name || !email || courseId == null || courseId === "") {
+    return res.status(400).json({
+      error: "Name, email, and courseId are required"
+    });
+  }
 
   try {
-
-    // Insert user
-    const userResult = await pool.query(
-      `INSERT INTO users (name, email)
-       VALUES ($1, $2)
+    const result = await pool.query(
+      `INSERT INTO users (name, email, course_id)
+       VALUES ($1, $2, $3)
        RETURNING *`,
-      [name, email]
+      [name.trim(), email.trim(), courseId]
     );
-
-    const user = userResult.rows[0];
-
-    // Insert selected courses
-    for (const courseId of courseIds) {
-
-      await pool.query(
-        `INSERT INTO user_courses (user_id, course_id)
-         VALUES ($1, $2)`,
-        [user.id, courseId]
-      );
-
-    }
 
     res.status(201).json({
       message: "User created successfully",
-      user: user,
-      courseIds: courseIds
+      user: result.rows[0]
     });
 
   } catch (error) {
-
     console.error("Error creating user:", error);
+
+    if (error.code === "23505") {
+      return res.status(409).json({
+        error: "A user with this email already exists"
+      });
+    }
+
+    if (error.code === "23503") {
+      return res.status(400).json({
+        error: "Selected course does not exist"
+      });
+    }
 
     res.status(500).json({
       error: "Failed to create user"
     });
+  }
+});
 
+
+// =========================
+// DELETE USER
+// =========================
+
+app.delete("/api/users/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM users WHERE id = $1 RETURNING *",
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    res.json({
+      message: "User deleted successfully",
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("Error deleting user:", error);
+
+    res.status(500).json({
+      error: "Failed to delete user"
+    });
   }
 });
 

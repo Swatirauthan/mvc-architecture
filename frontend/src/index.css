@@ -35,7 +35,7 @@ body {
 #root {
   min-height: 100svh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px 16px;
 }

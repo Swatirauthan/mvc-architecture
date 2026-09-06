@@ -18,6 +18,16 @@
   text-transform: uppercase;
 }
 
+.card a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.card a:hover {
+  text-decoration: underline;
+}
+
 .card h1 {
   margin: 0 0 8px;
   font-size: 1.5rem;
@@ -154,6 +164,22 @@ tr:last-child td {
 .empty {
   color: var(--muted);
   font-style: italic;
+}
+
+.delete-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-btn:hover {
+  background: #fecaca;
 }
 
 @media (max-width: 520px) {
